@@ -153,6 +153,7 @@
     if (e.target.closest('mn-root')) return;
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
 
     const anchor = MNXPath.pickAnchorAtPoint(e.clientX, e.clientY);
     const note = makeNote({
@@ -164,7 +165,10 @@
     debouncedSave();
     render();
     stopPlacing();
-    focusNote(note.id);
+    // Don't scroll — the new card already lives at the anchor's docTop, so
+    // the user's viewport is already where it should be. Just focus the
+    // textarea (with preventScroll so the browser doesn't try to nudge us).
+    focusNote(note.id, { scroll: false });
   }
 
   function addNoteAtViewport() {
@@ -177,7 +181,7 @@
     notes.push(note);
     debouncedSave();
     render();
-    focusNote(note.id);
+    focusNote(note.id, { scroll: false });
   }
 
   // -- Rendering ------------------------------------------------------------
@@ -363,12 +367,26 @@
     schedulePosition();
   }
 
-  function focusNote(id) {
+  // focusNote opens the textarea for editing.
+  // By default it does NOT scroll — the card is positioned at its anchor's
+  // docTop, so when you've just placed a note the viewport is already where
+  // it should be. Pass { scroll: true } for explicit "jump to this note"
+  // affordances (e.g. when a user clicks a far-away marker).
+  function focusNote(id, opts) {
     const card = cardLayer.querySelector(`.mn-card[data-id="${id}"]`);
     if (!card) return;
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const wantScroll = !!(opts && opts.scroll);
+    if (wantScroll) {
+      // Only scroll if the card isn't already in the viewport.
+      const r = card.getBoundingClientRect();
+      const inView = r.top >= 0 && r.bottom <= window.innerHeight;
+      if (!inView) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     const ta = card.querySelector('textarea');
-    if (ta) setTimeout(() => ta.focus(), 100);
+    if (ta) setTimeout(() => {
+      try { ta.focus({ preventScroll: true }); }
+      catch (e) { ta.focus(); }
+    }, 50);
   }
 
   function highlightAnchor(id, on) {
@@ -499,67 +517,101 @@
   }
 
   function buildSnapshot() {
-    const docClone = document.documentElement.cloneNode(true);
+    // Pre-compute each anchor's document-relative top on the LIVE page,
+    // before cloning. We'll position each snapshot sidenote at exactly that
+    // top so it always lands in the right margin — independent of how deeply
+    // nested the anchor is in the page's own layout containers. Float-based
+    // layouts can get trapped inside SaaS apps' inner divs; absolute
+    // positioning on body sidesteps that entirely.
+    const liveTops = {};
+    for (const n of notes) {
+      const el = resolveAnchor(n);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        liveTops[n.id] = rect.top + window.scrollY;
+      } else {
+        liveTops[n.id] = null;
+      }
+    }
 
-    // Strip our injected UI and any markers.
+    const docClone = document.documentElement.cloneNode(true);
     docClone.querySelectorAll('mn-root, [data-mn-root]').forEach(n => n.remove());
-    // Strip scripts so the archive doesn't try to re-execute the page's JS.
     docClone.querySelectorAll('script').forEach(s => s.remove());
 
-    const notesData = notes.map(n => ({ ...n }));
+    const notesData = notes.map(n => ({ ...n, __top: liveTops[n.id] }));
     const bodyClone = docClone.querySelector('body');
     if (!bodyClone) return '<!DOCTYPE html>\n' + docClone.outerHTML;
 
-    // Mark body as having margin notes so our CSS can reserve a gutter.
     bodyClone.classList.add('mn-snap-body');
 
-    // For each note, insert an inline sidenote next to the anchor's nearest
-    // block ancestor in the clone. Falls back to body append if not found.
+    // Inline #N badges at each anchor (kept for visual cross-reference).
+    const placed = [];
     const orphans = [];
     let noteIdx = 0;
     for (const n of notesData) {
       noteIdx++;
+      n.__idx = noteIdx;
       let anchorInClone = resolveInClone(docClone, n.xpath);
       if (!anchorInClone) anchorInClone = findInCloneByFingerprint(docClone, n.tag, n.fingerprint);
-      const inlineMarker = docClone.ownerDocument.createElement('span');
-      inlineMarker.className = 'mn-snap-marker';
-      inlineMarker.dataset.mnId = n.id;
-      inlineMarker.style.background = n.color;
-      inlineMarker.textContent = '#' + noteIdx;
-      inlineMarker.title = (n.text || '').slice(0, 200);
-
-      if (anchorInClone) {
-        // Inline marker right inside the anchor.
+      if (anchorInClone && typeof n.__top === 'number') {
+        const inlineMarker = docClone.ownerDocument.createElement('span');
+        inlineMarker.className = 'mn-snap-marker';
+        inlineMarker.dataset.mnId = n.id;
+        inlineMarker.style.background = n.color;
+        inlineMarker.textContent = '#' + noteIdx;
+        inlineMarker.title = (n.text || '').slice(0, 200);
         if (anchorInClone.firstChild) anchorInClone.insertBefore(inlineMarker, anchorInClone.firstChild);
         else anchorInClone.appendChild(inlineMarker);
-
-        // Floating sidenote next to the block ancestor.
-        const block = blockAncestorIn(docClone, anchorInClone);
-        const aside = docClone.ownerDocument.createElement('aside');
-        aside.className = 'mn-snap-sidenote';
-        aside.dataset.mnId = n.id;
-        aside.style.borderLeftColor = n.color;
-        const anchorPreview = escapeHtml((n.fingerprint || '').slice(0, 80));
-        aside.innerHTML = `
-          <span class="mn-snap-sidenote-num" style="background:${escapeHtml(n.color)}">#${noteIdx}</span>
-          ${anchorPreview ? `<div class="mn-snap-sidenote-anchor">↳ ${anchorPreview}</div>` : ''}
-          <div class="mn-snap-sidenote-text">${escapeHtml(n.text || '(empty)')}</div>
-        `;
-        block.insertAdjacentElement('afterend', aside);
-        n.__placed = true;
+        placed.push(n);
       } else {
         orphans.push({ note: n, idx: noteIdx });
       }
     }
 
-    // Snapshot CSS: gutter on right via body padding-right; sidenotes float
-    // into that gutter via negative right margin. Works for screen and print.
+    // Build the gutter container at body level — its absolute children are
+    // positioned relative to body (which we mark position:relative), so they
+    // ignore any inner page containers.
+    const gutter = docClone.ownerDocument.createElement('div');
+    gutter.className = 'mn-snap-gutter';
+
+    // Collision avoidance: sort by anchor top, push overlapping cards down.
+    const CARD_HEIGHT_EST = 80;
+    const GAP = 8;
+    placed.sort((a, b) => a.__top - b.__top);
+    let lastBottom = 0;
+    for (const n of placed) {
+      const desired = Math.max(0, n.__top);
+      const top = Math.max(desired, lastBottom + GAP);
+      const aside = docClone.ownerDocument.createElement('aside');
+      aside.className = 'mn-snap-sidenote';
+      aside.dataset.mnId = n.id;
+      aside.style.borderLeftColor = n.color;
+      aside.style.top = top + 'px';
+      const anchorPreview = escapeHtml((n.fingerprint || '').slice(0, 80));
+      aside.innerHTML = `
+        <span class="mn-snap-sidenote-num" style="background:${escapeHtml(n.color)}">#${n.__idx}</span>
+        ${anchorPreview ? `<div class="mn-snap-sidenote-anchor">↳ ${anchorPreview}</div>` : ''}
+        <div class="mn-snap-sidenote-text">${escapeHtml(n.text || '(empty)')}</div>
+      `;
+      gutter.appendChild(aside);
+      lastBottom = top + CARD_HEIGHT_EST;
+    }
+
+    bodyClone.appendChild(gutter);
+
     const snapStyles = `
-      :root { --mn-snap-gutter: 280px; --mn-snap-sidenote: 240px; }
+      :root { --mn-snap-gutter: 280px; --mn-snap-sidenote: 256px; }
+
+      /* Make body the containing block so absolute children of the gutter
+         resolve their coordinates against the document, not against some
+         inner container. padding-right reserves the gutter so original
+         content doesn't sit under the notes. */
       body.mn-snap-body {
+        position: relative !important;
         padding-right: var(--mn-snap-gutter) !important;
         box-sizing: border-box;
       }
+
       .mn-snap-marker {
         display: inline-block; color: #000;
         padding: 0 5px; border-radius: 8px;
@@ -568,23 +620,33 @@
         border: 1px solid rgba(0,0,0,0.2);
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
       }
+
+      .mn-snap-gutter {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: var(--mn-snap-gutter);
+        pointer-events: none;
+        z-index: 1000;
+      }
+
       aside.mn-snap-sidenote {
-        float: right;
-        clear: right;
+        position: absolute;
+        right: 8px;
         width: var(--mn-snap-sidenote);
-        margin: 4px calc(-1 * var(--mn-snap-gutter) + 12px) 12px 16px;
         padding: 8px 10px;
         background: #fff;
         border: 1px solid #e0e0e0;
         border-left: 4px solid #ccc;
         border-radius: 3px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         font-size: 12px;
         color: #222;
-        position: relative;
+        pointer-events: auto;
         page-break-inside: avoid;
         break-inside: avoid;
+        box-sizing: border-box;
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
       }
       aside.mn-snap-sidenote .mn-snap-sidenote-num {
@@ -594,12 +656,13 @@
         border: 1px solid rgba(0,0,0,0.15);
       }
       aside.mn-snap-sidenote .mn-snap-sidenote-anchor {
-        font-size: 10px; color: #888; margin: 4px 0 4px;
+        font-size: 10px; color: #888; margin: 4px 0;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       aside.mn-snap-sidenote .mn-snap-sidenote-text {
         white-space: pre-wrap; font-size: 12px; color: #222;
       }
+
       .mn-snap-orphan-box {
         clear: both;
         margin: 32px 0 0;
@@ -613,12 +676,13 @@
         background: #fff; border: 1px solid #e0e0e0; border-left: 4px solid #ccc;
         border-radius: 3px; padding: 8px 10px; margin: 0 0 8px;
       }
+
       @media print {
         @page { margin: 0.5in; }
+        :root { --mn-snap-gutter: 2in; --mn-snap-sidenote: 1.85in; }
         body.mn-snap-body { padding-right: 2in !important; }
-        :root { --mn-snap-gutter: 2in; --mn-snap-sidenote: 1.7in; }
         aside.mn-snap-sidenote {
-          margin: 4pt calc(-1 * var(--mn-snap-gutter) + 12pt) 8pt 12pt;
+          right: 4pt;
           font-size: 9pt;
           padding: 4pt 8pt;
           box-shadow: none;

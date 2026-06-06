@@ -1,30 +1,8 @@
 // Background service worker for Margin Notes.
-// Owns the IndexedDB instance, runs the one-time migration from
-// chrome.storage.local, and handles all storage / download / command messages.
+// Owns the IndexedDB instance and handles storage / download / command messages.
 
 try { importScripts('lib/idb.js'); }
 catch (e) { console.error('[MarginNotes] failed to load idb.js', e); }
-
-let migrationPromise = null;
-
-function ensureMigration() {
-  if (!migrationPromise) {
-    migrationPromise = (self.MNDB && self.MNDB.migrateFromChromeStorage())
-      ? self.MNDB.migrateFromChromeStorage().catch((e) => {
-          console.warn('[MarginNotes] migration failed', e);
-          return { migrated: false, error: String(e) };
-        })
-      : Promise.resolve({ migrated: false, reason: 'no-idb' });
-  }
-  return migrationPromise;
-}
-
-// Kick off migration eagerly on every wake of the SW (cheap if already done).
-ensureMigration();
-
-chrome.runtime.onInstalled.addListener(() => {
-  ensureMigration();
-});
 
 chrome.commands.onCommand.addListener(async (command) => {
   const tab = await getActiveTab();
@@ -41,7 +19,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       console.error('[MarginNotes] storage op failed', e);
       sendResponse({ ok: false, error: String(e) });
     });
-    return true; // async
+    return true;
   }
 
   if (msg.type === 'mn-download') {
@@ -62,7 +40,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 async function handleStorage(msg) {
-  await ensureMigration();
   if (!self.MNDB) return { ok: false, error: 'idb unavailable' };
 
   const { op, pageKey, notes } = msg;
@@ -85,10 +62,6 @@ async function handleStorage(msg) {
   if (op === 'pages') {
     const pages = await self.MNDB.listPages();
     return { ok: true, pages };
-  }
-  if (op === 'migration-status') {
-    const meta = await self.MNDB.getMeta('migrated_v1');
-    return { ok: true, migrated: !!(meta && meta.value && meta.value.value === true), info: meta && meta.value };
   }
   return { ok: false, error: 'unknown op: ' + op };
 }

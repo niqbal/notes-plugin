@@ -65,7 +65,7 @@ Store reviewers reject extensions without one if you touch user content. Sample 
 
 > **Margin Notes — Privacy Policy**
 >
-> Margin Notes runs entirely on your device. The text of your notes, the page URLs they're attached to, and the XPath / fingerprint used to re-anchor them are stored in an IndexedDB database in your browser. No data is sent to any remote server, telemetry endpoint, or third party. The extension requests `<all_urls>` host access so you can take notes on any page; it only reads/writes the page DOM when you interact with the toolbar or hotkeys. You can clear notes for the current page from the toolbar, or wipe all data by removing the extension.
+> Margin Notes runs entirely on your device. The text of your notes, the page URLs they're attached to, and the XPath / fingerprint used to re-anchor them are stored in an IndexedDB database inside the extension's own origin. No data is sent to any remote server, telemetry endpoint, or third party. The extension requests `<all_urls>` host access so you can take notes on any page; it only reads/writes the page DOM when you interact with the toolbar or hotkeys. You can clear notes for the current page from the toolbar, or wipe all data by removing the extension.
 
 ### Justifying broad permissions
 
@@ -74,8 +74,7 @@ The Chrome Web Store review form asks you to justify every permission. Crib shee
 | Permission | Justification |
 |---|---|
 | `<all_urls>` | Required to inject the sidebar and place notes on any page the user visits. |
-| `storage` | Used to detect prior storage and migrate it; long-term storage is IndexedDB. |
-| `unlimitedStorage` | Removes the 10MB IDB cap so users with notes across many pages aren't blocked. |
+| `unlimitedStorage` | Lets the IndexedDB notes store grow beyond the default quota for users with many annotated pages. |
 | `activeTab` | Lets the toolbar popup target the current tab for save/print commands. |
 | `scripting` | Reserved for future programmatic injection (currently unused but declared). |
 | `downloads` | Used by the "Save snapshot" feature to write the self-contained HTML file. |

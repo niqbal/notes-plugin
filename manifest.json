@@ -3,7 +3,7 @@
   "name": "Margin Notes",
   "version": "0.1.0",
   "description": "Freeform margin notes for any webpage. Notes anchor to content, survive refreshes, and print colocated.",
-  "permissions": ["storage", "activeTab", "scripting", "downloads", "unlimitedStorage"],
+  "permissions": ["activeTab", "scripting", "downloads", "unlimitedStorage"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "Margin Notes",
