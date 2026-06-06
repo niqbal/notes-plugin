@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "margin-notes-harness",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "/Users/nawab.iqbal/work/code/notes-plugin"],
+      "port": 8765,
+      "url": "http://localhost:8765/test/harness.html"
+    }
+  ]
+}

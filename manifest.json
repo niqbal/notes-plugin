@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Margin Notes",
+  "version": "0.1.0",
+  "description": "Freeform margin notes for any webpage. Notes anchor to content, survive refreshes, and print colocated.",
+  "permissions": ["storage", "activeTab", "scripting", "downloads", "unlimitedStorage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Margin Notes",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib/xpath.js", "lib/storage.js", "content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "commands": {
+    "toggle-sidebar": {
+      "suggested_key": {
+        "default": "Alt+M",
+        "mac": "Alt+M"
+      },
+      "description": "Toggle the Margin Notes sidebar"
+    },
+    "add-note": {
+      "suggested_key": {
+        "default": "Alt+N",
+        "mac": "Alt+N"
+      },
+      "description": "Add a margin note at current scroll position"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["content/print.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

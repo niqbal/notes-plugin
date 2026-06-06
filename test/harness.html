@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Margin Notes — In-Page Harness</title>
+  <style>
+    body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #222; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    h2 { font-size: 20px; margin-top: 32px; }
+    p { margin: 12px 0; }
+    blockquote { border-left: 3px solid #ccc; padding-left: 12px; color: #555; font-style: italic; }
+    code { background: #f4f4f4; padding: 1px 5px; border-radius: 3px; font-size: 14px; }
+    figure { margin: 20px 0; text-align: center; }
+    figure .placeholder { display: inline-block; width: 320px; height: 180px; background: linear-gradient(135deg, #b3e5fc, #4fc3f7); border-radius: 6px; }
+    figcaption { font-size: 13px; color: #777; margin-top: 6px; }
+    .callout { background: #fffbe6; border: 1px solid #efe6b0; border-radius: 4px; padding: 12px 16px; margin: 16px 0; }
+    .harness-banner {
+      background: #4a90e2; color: #fff; padding: 6px 12px; border-radius: 4px;
+      font-size: 12px; margin-bottom: 20px;
+    }
+  </style>
+
+  <!-- Real extension stylesheet (cache-busted) -->
+  <script>document.write(`<link rel="stylesheet" href="/content/content.css?v=${Date.now()}">`);</script>
+
+  <!-- Chrome.* API shim so the content script runs outside an extension context.
+       Storage is routed through an in-page IndexedDB instance (same DB code
+       the background SW would use), so the harness exercises the real
+       sendMessage → MNDB → IndexedDB path. -->
+  <script>document.write(`<script src="/lib/idb.js?v=${Date.now()}"><\/script>`);</script>
+  <script>
+    (function () {
+      // The MNDB IIFE assigns to `self.MNDB`. In a real SW, `self` is the
+      // global. In a window, `self === window`, so it lands on window.MNDB.
+      const __msgListeners = [];
+
+      window.__MN_TEST__ = {
+        clearMem: async () => {
+          // Wipe the harness's IndexedDB.
+          return new Promise((resolve) => {
+            const req = indexedDB.deleteDatabase('MarginNotes');
+            req.onsuccess = req.onerror = req.onblocked = () => resolve(true);
+          });
+        },
+        dispatch: (msg) => {
+          const results = [];
+          for (const fn of __msgListeners) {
+            try { fn(msg, {}, (r) => results.push(r)); } catch (e) { console.error(e); }
+          }
+          return results;
+        },
+        listeners: () => __msgListeners.length,
+        stats: () => MNDB.getStats(),
+        pages: () => MNDB.listPages(),
+      };
+
+      // Stub chrome.* to route mn-storage to MNDB, mn-download to a noop.
+      window.chrome = {
+        storage: {
+          local: {
+            get(keys, cb) { setTimeout(() => cb({}), 0); },
+            set(obj, cb) { setTimeout(() => cb && cb(), 0); },
+            remove(keys, cb) { setTimeout(() => cb && cb(), 0); },
+          },
+        },
+        runtime: {
+          lastError: null,
+          onMessage: { addListener(fn) { __msgListeners.push(fn); } },
+          async sendMessage(msg, cb) {
+            try {
+              if (msg && msg.type === 'mn-storage') {
+                const { op, pageKey, notes } = msg;
+                if (op === 'get') {
+                  const list = await MNDB.getNotesForPage(pageKey);
+                  return cb && cb({ ok: true, notes: list });
+                }
+                if (op === 'set') {
+                  await MNDB.setNotesForPage(pageKey, notes || []);
+                  return cb && cb({ ok: true });
+                }
+                if (op === 'clear') {
+                  await MNDB.clearNotesForPage(pageKey);
+                  return cb && cb({ ok: true });
+                }
+                if (op === 'stats') {
+                  return cb && cb({ ok: true, stats: await MNDB.getStats() });
+                }
+                if (op === 'pages') {
+                  return cb && cb({ ok: true, pages: await MNDB.listPages() });
+                }
+                return cb && cb({ ok: false, error: 'unknown op' });
+              }
+              // mn-download: simulate failure so content.js uses blob fallback.
+              return cb && cb({ ok: false, error: 'shim' });
+            } catch (e) {
+              return cb && cb({ ok: false, error: String(e) });
+            }
+          },
+        },
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div class="harness-banner">Harness mode — extension code is loaded directly. Storage is in-memory.</div>
+
+  <h1 id="hero">The Margin Notes Test Page</h1>
+  <p id="intro">This page exists to verify the Margin Notes extension. Open the sidebar with <code>Alt+M</code>, then click <strong id="bold-target">+ Note</strong> and place notes around the page to confirm they anchor, persist, and print correctly.</p>
+
+  <h2 id="anchoring">Anchoring</h2>
+  <p id="anchor-p">Notes should anchor to the nearest DOM element via XPath. If the page is refreshed, every note should reappear in the same place. Try attaching a note to <strong>this bold word</strong> and refreshing.</p>
+
+  <blockquote id="quote-shakespeare">
+    "We know what we are, but know not what we may be." — Hamlet, Act IV, Scene V.
+  </blockquote>
+
+  <h2 id="persistence">Persistence</h2>
+  <p>Notes are stored in <code>chrome.storage.local</code>, keyed by <code>origin + pathname</code>. That means notes here live separately from notes on <code>/test-page-2.html</code>.</p>
+
+  <figure>
+    <span class="placeholder" id="placeholder-img"></span>
+    <figcaption id="fig-caption">A placeholder figure — try attaching a note to the gradient block above.</figcaption>
+  </figure>
+
+  <h2 id="long-content">Long content</h2>
+  <p>The following section gives you enough vertical content to test scrolling, marker repositioning, and a printed layout that spans multiple pages.</p>
+  <p>Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas.</p>
+  <div class="callout" id="callout-print">
+    <strong>Print test:</strong> Once you've added a few notes, hit Print. Notes should appear in the right margin of the printed output.
+  </div>
+
+  <h2 id="export">Snapshot test</h2>
+  <p>Click <em>Save</em> to download a self-contained HTML archive that bundles the current page state with all of your notes.</p>
+
+  <footer style="margin-top: 60px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 13px;">
+    End of test page.
+  </footer>
+
+  <!-- Real extension scripts (cache-busted so the preview always reloads them) -->
+  <script>const __V = Date.now();
+    document.write(`<script src="/lib/xpath.js?v=${__V}"><\/script>`);
+    document.write(`<script src="/lib/storage.js?v=${__V}"><\/script>`);
+    document.write(`<script src="/content/content.js?v=${__V}"><\/script>`);
+  </script>
+</body>
+</html>

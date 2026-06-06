@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Node (if anyone adds tooling later)
+node_modules/
+
+# Build artifacts
+margin-notes-*.zip
+*.crx
+*.pem
+
+# Local backups (e.g. patched snapshot .bak files)
+*.bak
+
+# Preview / test scratch — keep harness.html and test-page.html, drop anything else
+test/snapshot-*.html
+test/scratch-*
+
+# Claude Code session-local state. Keep launch.json (project config); drop
+# anything else the harness writes here.
+.claude/sessions/
+.claude/tool-results/
+.claude/cache/

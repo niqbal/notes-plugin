@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Margin Notes</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>Margin Notes</h1>
+  </header>
+
+  <section class="actions">
+    <button id="toggle">Toggle sidebar <span class="key">Alt+M</span></button>
+    <button id="place">Add note <span class="key">Alt+N</span></button>
+    <button id="save">Save snapshot</button>
+    <button id="print">Print with notes</button>
+  </section>
+
+  <section class="page">
+    <div class="label">This page</div>
+    <div id="page-url" class="url">—</div>
+    <div id="count" class="count">0 notes</div>
+  </section>
+
+  <section class="danger">
+    <button id="clear" class="danger-btn">Clear notes on this page</button>
+  </section>
+
+  <footer>
+    <div class="tip">Tip: Alt+M toggles the sidebar. Alt+N starts placing a note.</div>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
