@@ -34,7 +34,7 @@ Stores require monotonically increasing versions on resubmit.
 The store cares about *what's inside the package* — extra files just bloat the upload and slow review. Build a clean zip that includes only the runtime files.
 
 ```bash
-cd /Users/nawab.iqbal/work/code/notes-plugin
+cd notes-plugin
 rm -f margin-notes.zip
 zip -r margin-notes.zip \
   manifest.json background.js \
@@ -129,7 +129,7 @@ I'd defer Firefox until the Chrome/Edge release is stable.
 If you want to share a build outside any store (e.g. for a small team or an internal beta):
 
 ```bash
-cd /Users/nawab.iqbal/work/code/notes-plugin
+cd notes-plugin
 zip -r margin-notes-0.2.0.zip manifest.json background.js content/ lib/ popup/ icons/ -x "*.DS_Store"
 ```
 

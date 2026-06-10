@@ -25,7 +25,7 @@
   let notes = [];
   let placingNote = false;
   let root, toolbar, cardLayer, markerLayer, expandedNoteId = null;
-  let gutterShown = true;
+  let gutterShown = false;
   let saveTimer = null;
   let positionTimer = null;
   let hintEl = null;
@@ -79,12 +79,12 @@
     root.setAttribute('data-mn-root', 'true');
 
     toolbar = document.createElement('div');
-    toolbar.className = 'mn-toolbar';
+    toolbar.className = 'mn-toolbar mn-collapsed';
     toolbar.innerHTML = `
       <button class="mn-btn mn-btn-primary" data-action="add" title="Add note (Alt+N)">+ Note</button>
       <button class="mn-btn" data-action="save" title="Save as self-contained HTML">Save</button>
       <button class="mn-btn" data-action="print" title="Print with notes in margin">Print</button>
-      <button class="mn-btn" data-action="toggle" title="Show/hide notes (Alt+M)" data-mn-toggle>Hide</button>
+      <button class="mn-btn" data-action="toggle" title="Show/hide notes (Alt+M)" data-mn-toggle>Notes</button>
       <button class="mn-btn mn-btn-danger" data-action="clear" title="Clear all notes on this page">Clear</button>
       <span class="mn-toolbar-count" data-mn-count>0</span>
     `;
@@ -100,7 +100,7 @@
     root.appendChild(markerLayer);
 
     document.documentElement.appendChild(root);
-    document.body.classList.add('mn-active');
+    root.classList.add('mn-hidden');
   }
 
   function onToolbarClick(e) {
@@ -118,14 +118,27 @@
     gutterShown = !gutterShown;
     document.body.classList.toggle('mn-active', gutterShown);
     root.classList.toggle('mn-hidden', !gutterShown);
-    const btn = toolbar.querySelector('[data-mn-toggle]');
-    if (btn) btn.textContent = gutterShown ? 'Hide' : 'Show';
+    toolbar.classList.toggle('mn-collapsed', !gutterShown);
+    updateToggleLabel();
     positionCards();
+  }
+
+  function updateToggleLabel() {
+    const btn = toolbar.querySelector('[data-mn-toggle]');
+    if (!btn) return;
+    if (gutterShown) {
+      btn.textContent = 'Hide';
+    } else {
+      btn.textContent = notes.length
+        ? `Notes (${notes.length})`
+        : 'Notes';
+    }
   }
 
   // -- Placement ------------------------------------------------------------
   function startPlacing() {
     if (placingNote) return;
+    if (!gutterShown) toggleGutter();
     placingNote = true;
     document.body.classList.add('mn-placing');
     showHint('Click anywhere on the page to attach a note. Press Esc to cancel.');
@@ -172,6 +185,7 @@
   }
 
   function addNoteAtViewport() {
+    if (!gutterShown) toggleGutter();
     const x = window.innerWidth / 2;
     const y = window.innerHeight / 3;
     const anchor = MNXPath.pickAnchorAtPoint(x, y) || document.body;
@@ -195,6 +209,7 @@
   function updateCount() {
     const el = toolbar.querySelector('[data-mn-count]');
     if (el) el.textContent = `${notes.length} note${notes.length === 1 ? '' : 's'}`;
+    updateToggleLabel();
   }
 
   function renderCards() {
@@ -825,10 +840,7 @@
     buildUI();
     notes = await MNStorage.getNotes();
     render();
-    if (!notes.length) {
-      // Don't show the gutter pre-emptively when there's nothing there yet.
-      // Toolbar stays visible so users can add their first note.
-    }
+    if (notes.length) toggleGutter();
     window.addEventListener('scroll', schedulePosition, { passive: true });
     window.addEventListener('resize', schedulePosition);
     // Periodic rescue: handles lazy-loaded content shifting anchors.

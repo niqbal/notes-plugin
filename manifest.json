@@ -46,11 +46,5 @@
       },
       "description": "Add a margin note at current scroll position"
     }
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["content/print.css"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

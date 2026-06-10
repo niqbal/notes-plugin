@@ -67,6 +67,29 @@ body.mn-active {
   white-space: nowrap;
 }
 
+/* Collapsed: only the toggle button is visible, styled as a primary chip. */
+.mn-toolbar.mn-collapsed {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.mn-toolbar.mn-collapsed > *:not([data-mn-toggle]) { display: none; }
+.mn-toolbar.mn-collapsed .mn-btn[data-mn-toggle] {
+  background: #4a90e2;
+  color: #fff;
+  border-color: #3a7bc8;
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  font-size: 12px;
+  opacity: 0.85;
+}
+.mn-toolbar.mn-collapsed .mn-btn[data-mn-toggle]:hover {
+  background: #3a7bc8;
+  opacity: 1;
+}
+
 /* Card layer ----------------------------------------------------------- */
 
 .mn-card-layer {

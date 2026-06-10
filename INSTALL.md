@@ -12,11 +12,7 @@ Chrome extension that pegs freeform notes to any webpage. Notes anchor to DOM el
 
 ## Try it on the bundled test page
 
-Open the local file in Chrome:
-
-```
-file:///Users/nawab.iqbal/work/code/notes-plugin/test/test-page.html
-```
+Open `test/test-page.html` from this repo in Chrome — drag the file into a tab, or paste the file path into the URL bar.
 
 (You may need to allow file:// access — go to `chrome://extensions`, click the Margin Notes "Details" link, and enable **Allow access to file URLs**.)
 
@@ -42,7 +38,8 @@ file:///Users/nawab.iqbal/work/code/notes-plugin/test/test-page.html
 - `content/content.js` — sidebar UI, anchoring, persistence, save, print
 - `content/content.css` — sidebar + marker styles + print stylesheet
 - `lib/xpath.js` — XPath compute/resolve
-- `lib/storage.js` — chrome.storage.local wrapper
+- `lib/storage.js` — content-script storage proxy (talks to background SW)
+- `lib/idb.js` — IndexedDB wrapper owned by the background service worker
 - `popup/` — toolbar popup
 - `icons/` — 16/48/128 PNG icons
 - `test/test-page.html` — local test page
